@@ -1,10 +1,15 @@
+import sys
+
+import bcoding
+
 from parsing_torrent_file import parsing_torrent_file
 
 
 
 def main():
-    print(parsing_torrent_file(
-        "/Users/denisbrevnov/Downloads/Baba.Is.You.v478f.rar.torrent"))
+    args = sys.argv
+    print("Input path to torrent file:\n")
+    print(parsing_torrent_file(args[1]))
 
 
 if __name__ == "__main__":
