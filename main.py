@@ -1,15 +1,17 @@
-import sys
+import argparse
 
-import bcoding
-
-from parsing_torrent_file import parsing_torrent_file
-
+from parsing_torrent_file import TorrentFileParser
 
 
 def main():
-    args = sys.argv
-    print("Input path to torrent file:\n")
-    print(parsing_torrent_file(args[1]))
+    parser = argparse.ArgumentParser(prog="BitTorrent")
+    parser.add_argument("source", help="link to .torrent file")
+    parser.add_argument("-d", "--destination", help="destination folder to save files")
+
+    args = parser.parse_args()
+    print(f"Downloading files from '{args.source}'...")
+
+    torrent_file_parser = TorrentFileParser(args.source, args.destination)
 
 
 if __name__ == "__main__":
