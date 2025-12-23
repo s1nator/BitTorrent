@@ -1,6 +1,7 @@
 import argparse, logging
 
 from torrent_file_parser import TorrentFileParser
+from loader_torrent_file import LoaderTorrentFile
 
 
 def setup_logging():
@@ -24,7 +25,15 @@ def main():
     args = parser.parse_args()
     print(f"Downloading files from '{args.source}'...")
 
-    torrent_file_parser = TorrentFileParser(args.source, args.destination)
+
+    # torrent_file_parser = TorrentFileParser(args.source, args.destination)
+    # print(torrent_file_parser.parse())
+
+    torrent_file_loader = LoaderTorrentFile(args.source, args.destination)
+    print(torrent_file_loader.loader())
+
+
+
 
 
 if __name__ == "__main__":
