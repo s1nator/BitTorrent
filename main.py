@@ -25,15 +25,11 @@ def main():
     args = parser.parse_args()
     print(f"Downloading files from '{args.source}'...")
 
-
     # torrent_file_parser = TorrentFileParser(args.source, args.destination)
     # print(torrent_file_parser.parse())
 
     torrent_file_loader = LoaderTorrentFile(args.source, args.destination)
     print(torrent_file_loader.loader())
-
-
-
 
 
 if __name__ == "__main__":
