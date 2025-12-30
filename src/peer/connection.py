@@ -27,6 +27,7 @@ class PeerConnection(threading.Thread):
 
     def run(self):
         if self.perform_handshake():
+            self.send_bitfield()
             self.handle_peer_session()
         self.peer_socket.close()
 
@@ -85,6 +86,11 @@ class PeerConnection(threading.Thread):
                 msg_id, payload = self.recv_bt_message()
                 if msg_id is None:
                     break
+
+                if msg_id == 2: 
+                    logger.info("Peer is interested, unchoking")
+                    self.send_unchoke()
+
                 if msg_id == 6:
                     piece_index, begin, length = self.parse_request(payload)
                     block = self.storage_manager.read_piece(piece_index, begin, length)
@@ -125,4 +131,14 @@ class PeerConnection(threading.Thread):
     def send_piece(self, piece_index, begin, block):
         msg_len = 1 + 4 + 4 + len(block)
         msg = struct.pack(">IBII", msg_len, 7, piece_index, begin) + block
+        self.peer_socket.sendall(msg)
+
+    def send_unchoke(self):
+        msg = struct.pack(">IB", 1, 1)
+        self.peer_socket.sendall(msg)
+
+    def send_bitfield(self):
+        bitfield = self.storage_manager.get_bitfield() 
+        msg_len = 1 + len(bitfield)
+        msg = struct.pack(f">IB{len(bitfield)}s", msg_len, 5, bitfield)
         self.peer_socket.sendall(msg)

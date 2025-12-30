@@ -1,4 +1,5 @@
 import hashlib
+import math
 import os
 
 
@@ -14,7 +15,31 @@ class StorageManager:
         self.torrent_info = torrent_info
         self.download_dir = download_dir
         self.piece_length = torrent_info["piece length"]
+        self.total_pieces = len(self.torrent_info["pieces"]) // 20
+        self.pieces_status = [False] * self.total_pieces
         self.file_map = self._build_file_map()
+
+    def get_bitfield(self) -> bytes:
+        """
+        Generates the bitfield bytes representing the pieces available
+        """
+        num_bytes = math.ceil(self.total_pieces / 8)
+        bitfield = bytearray(num_bytes)
+
+        for i, has_piece in enumerate(self.pieces_status):
+            if has_piece:
+                byte_index = i // 8
+                bit_index = i % 8
+                bitfield[byte_index] |= (1 << (7 - bit_index))
+        
+        return bytes(bitfield)
+    
+    def mark_piece_completed(self, piece_index: int):
+        """
+        Updates the internal status to indicate the piece is available
+        """
+        if 0 <= piece_index < self.total_pieces:
+            self.pieces_status[piece_index] = True
 
     def _build_file_map(self):
         """
