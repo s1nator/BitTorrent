@@ -1,7 +1,7 @@
 import argparse, logging
 
-from torrent_file_parser import TorrentFileParser
-from handshake_torrent_file import HandShakeTCP
+from src.torrent.parser import TorrentFileParser
+from src.peer.handshake import HandShakeTCP
 
 
 def setup_logging():

@@ -1,4 +1,4 @@
-from torrent_file_parser import TorrentFileParser
+from src.torrent.parser import TorrentFileParser
 import requests
 import socket
 import struct

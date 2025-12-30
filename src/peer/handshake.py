@@ -1,5 +1,5 @@
-from get_peers_file import GetPeers
-from torrent_file_parser import TorrentFileParser
+from src.tracker.get_peers import GetPeers
+from src.torrent.parser import TorrentFileParser
 import struct
 import socket
 
