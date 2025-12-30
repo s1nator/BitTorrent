@@ -1,6 +1,5 @@
 import argparse, logging
 
-from src.torrent.parser import TorrentFileParser
 from src.peer.handshake import HandShakeTCP
 
 

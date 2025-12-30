@@ -45,7 +45,13 @@ class TorrentFileParser:
             info_hash = hashlib.sha1(bcoding.bencode(torrent_data["info"])).digest()
             left = self.get_total_size(torrent_data["info"])
 
-            return [list_args_for_torrent_file, info_hash, peer_id, left]
+            return [
+                list_args_for_torrent_file,
+                info_hash,
+                peer_id,
+                left,
+                torrent_data["info"],
+            ]
 
         except Exception as e:
             error = f"Error: {e}"

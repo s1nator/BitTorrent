@@ -87,7 +87,7 @@ class PeerConnection(threading.Thread):
                 if msg_id is None:
                     break
 
-                if msg_id == 2: 
+                if msg_id == 2:
                     logger.info("Peer is interested, unchoking")
                     self.send_unchoke()
 
@@ -138,7 +138,7 @@ class PeerConnection(threading.Thread):
         self.peer_socket.sendall(msg)
 
     def send_bitfield(self):
-        bitfield = self.storage_manager.get_bitfield() 
+        bitfield = self.storage_manager.get_bitfield()
         msg_len = 1 + len(bitfield)
         msg = struct.pack(f">IB{len(bitfield)}s", msg_len, 5, bitfield)
         self.peer_socket.sendall(msg)

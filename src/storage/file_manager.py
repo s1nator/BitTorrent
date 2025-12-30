@@ -1,3 +1,4 @@
+from src.progress.indicator import ProgressIndicator
 import hashlib
 import math
 import os
@@ -30,10 +31,10 @@ class StorageManager:
             if has_piece:
                 byte_index = i // 8
                 bit_index = i % 8
-                bitfield[byte_index] |= (1 << (7 - bit_index))
-        
+                bitfield[byte_index] |= 1 << (7 - bit_index)
+
         return bytes(bitfield)
-    
+
     def mark_piece_completed(self, piece_index: int):
         """
         Updates the internal status to indicate the piece is available

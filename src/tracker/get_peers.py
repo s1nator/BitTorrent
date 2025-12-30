@@ -3,6 +3,9 @@ import requests
 import socket
 import struct
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class GetPeers:
@@ -32,7 +35,7 @@ class GetPeers:
                 try:
                     request = requests.get(index, params=params, timeout=5).status_code
                 except Exception as e:
-                    print(f"HTTP tracker error: {e}")
+                    logger.error(f"HTTP tracker error: {e}")
                     continue
             else:
                 try:
@@ -54,7 +57,7 @@ class GetPeers:
                     response, _ = sock.recvfrom(10000)
 
                     if len(response) < 16:
-                        print(f"Error bad response from {index}")
+                        logger.error(f"Error bad response from {index}")
                         continue
 
                     action, response_transaction_id, connection_id = struct.unpack(
@@ -62,7 +65,7 @@ class GetPeers:
                     )
 
                     if response_transaction_id != transaction_id:
-                        print(f"Wrong transaction id from {index}")
+                        logger.error(f"Wrong transaction id from {index}")
                         continue
 
                     action_announce = 1
@@ -106,7 +109,7 @@ class GetPeers:
                     response, _ = sock.recvfrom(10000)
 
                     if len(response) < 20:
-                        print(f"Response is smaller than 20 from {index}")
+                        logger.error(f"Response is smaller than 20 from {index}")
                         continue
 
                     peers_ip = response[20:]
@@ -120,11 +123,11 @@ class GetPeers:
                         port_int = struct.unpack("!H", port_bytes)[0]
                         peers.append((ip_str, int(port_int)))
 
-                    print(f"Found {len(peers)} peers from {index}")
+                    logger.info(f"Found {len(peers)} peers from {index}")
                     return peers, info_hash, peer_id
 
                 except Exception as e:
-                    print(f"Error connecting to tracker {index}: {e}")
+                    logger.error(f"Error connecting to tracker {index}: {e}")
                     continue
 
         return None, None, None
