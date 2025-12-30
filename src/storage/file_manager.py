@@ -1,3 +1,7 @@
+import hashlib
+import os
+
+
 class StorageManager:
     def __init__(self, torrent_info, download_dir):
         """
@@ -19,7 +23,35 @@ class StorageManager:
         Returns:
             list: A list of tuples, each containing (file_path, file_offset, size) for every file in the torrent
         """
-        raise NotImplementedError()
+        files = []
+        if "files" in self.torrent_info:
+            current_offset = 0
+            for fileinfo in self.torrent_info["files"]:
+                path = os.path.join(self.download_dir, *fileinfo["path"])
+                length = fileinfo["length"]
+                files.append(
+                    {
+                        "path": path,
+                        "length": length,
+                        "start_off": current_offset,
+                        "end_off": current_offset + length,
+                    }
+                )
+                current_offset += length
+        else:
+            filename = self.torrent_info["name"]
+            length = self.torrent_info["length"]
+            path = os.path.join(self.download_dir, filename)
+            files.append(
+                {"path": path, "length": length, "start_off": 0, "end_off": length}
+            )
+
+        for file in files:
+            os.makedirs(os.path.dirname(file["path"]), exist_ok=True)
+            if not os.path.exists(file["path"]):
+                with open(file["path"], "wb") as tmp:
+                    tmp.truncate(file["length"])
+        return files
 
     def write_piece(self, piece_index: int, data: bytes):
         """
@@ -32,7 +64,22 @@ class StorageManager:
         Raises:
             IOError: If a disk write operation fails.
         """
-        raise NotImplementedError()
+        global_offset = piece_index * self.piece_length
+        remaining = len(data)
+        data_offset = 0
+
+        for f in self.file_map:
+            if global_offset < f["end_off"]:
+                file_rel_offset = max(global_offset - f["start_off"], 0)
+                write_len = min(remaining, f["end_off"] - global_offset)
+                with open(f["path"], "r+b") as fh:
+                    fh.seek(file_rel_offset)
+                    fh.write(data[data_offset : data_offset + write_len])
+                remaining -= write_len
+                global_offset += write_len
+                data_offset += write_len
+                if remaining <= 0:
+                    break
 
     def read_piece(self, piece_index: int, offset: int, length: int) -> bytes:
         """
@@ -49,7 +96,23 @@ class StorageManager:
         Raises:
             IOError: If a disk read operation fails.
         """
-        raise NotImplementedError()
+        global_offset = piece_index * self.piece_length + offset
+        remaining = length
+        data = bytearray()
+
+        for f in self.file_map:
+            if global_offset < f["end_off"]:
+                file_rel_offset = max(global_offset - f["start_off"], 0)
+                read_len = min(remaining, f["end_off"] - global_offset)
+                with open(f["path"], "rb") as fh:
+                    fh.seek(file_rel_offset)
+                    data.extend(fh.read(read_len))
+                remaining -= read_len
+                global_offset += read_len
+                if remaining <= 0:
+                    break
+
+        return bytes(data)
 
     def piece_hash_valid(self, piece_index: int, data: bytes) -> bool:
         """
@@ -62,4 +125,7 @@ class StorageManager:
         Returns:
             bool: True if the data hash matches the expected hash
         """
-        raise NotImplementedError()
+        pieces_hashes = self.torrent_info["pieces"]
+        piece_hash = pieces_hashes[piece_index * 20 : (piece_index + 1) * 20]
+        real_hash = hashlib.sha1(data).digest()
+        return real_hash == piece_hash
