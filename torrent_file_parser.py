@@ -32,8 +32,12 @@ class TorrentFileParser:
                 torrent_data = bcoding.bdecode(raw_data)
 
             if "announce" in torrent_data:
-                for item in torrent_data["announce-list"]:
-                    list_args_for_torrent_file.append(*item)
+                if "announce-list" in torrent_data:
+                    for tier in torrent_data["announce-list"]:
+                        for tracker in tier:
+                            list_args_for_torrent_file.append(tracker)
+                elif "announce" in torrent_data:
+                    list_args_for_torrent_file.append(torrent_data["announce"])
 
             peer_id = (
                 f"-PC0001-{''.join([str(random.randint(0, 9)) for _ in range(12)])}"
@@ -44,5 +48,6 @@ class TorrentFileParser:
             return [list_args_for_torrent_file, info_hash, peer_id, left]
 
         except Exception as e:
-            logging.error(f"Error: {e}")
-            raise e
+            error = f"Error: {e}"
+            logging.error(error)
+            raise Exception(error)
