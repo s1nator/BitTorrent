@@ -33,10 +33,11 @@ class TorrentFileParser:
 
             if "announce" in torrent_data:
                 for item in torrent_data["announce-list"]:
-                    if "http" in item[0] or "https" in item[0]:
-                        list_args_for_torrent_file.append(*item)
+                    list_args_for_torrent_file.append(*item)
 
-            peer_id = f"peer_id={'-PC0001-' + ''.join([str(random.randint(0, 9)) for _ in range(12)])}"
+            peer_id = (
+                f"-PC0001-{''.join([str(random.randint(0, 9)) for _ in range(12)])}"
+            )
             info_hash = hashlib.sha1(bcoding.bencode(torrent_data["info"])).digest()
             left = self.get_total_size(torrent_data["info"])
 
