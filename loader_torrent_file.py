@@ -8,11 +8,11 @@ class HandShakeTCP:
     source: str
     destination: str
 
-    def __init__(self, source, destination) -> None:
+    def __init__(self, source: str, destination: str) -> None:
         self.source = source
         self.destination = destination
 
-    def handshake(self):
+    def handshake(self) -> None:
         list_args, info_hash, peer_id, left = TorrentFileParser(
             self.source, self.destination
         ).parse()

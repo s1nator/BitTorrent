@@ -9,7 +9,7 @@ class GetPeers:
     source: str
     destination: str
 
-    def __init__(self, source, destination) -> None:
+    def __init__(self, source: str, destination: str) -> None:
         self.source = source
         self.destination = destination
 
