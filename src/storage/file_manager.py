@@ -19,6 +19,7 @@ class StorageManager:
         self.total_pieces = len(self.torrent_info["pieces"]) // 20
         self.pieces_status = [False] * self.total_pieces
         self.file_map = self._build_file_map()
+        self.progress = ProgressIndicator(self.total_pieces)
 
     def get_bitfield(self) -> bytes:
         """
@@ -41,6 +42,10 @@ class StorageManager:
         """
         if 0 <= piece_index < self.total_pieces:
             self.pieces_status[piece_index] = True
+            completed = sum(self.pieces_status)
+            self.progress.update(completed)
+            if completed == self.total_pieces:
+                self.progress.close()
 
     def _build_file_map(self):
         """
