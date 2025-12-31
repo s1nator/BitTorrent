@@ -2,6 +2,9 @@ from src.progress.indicator import ProgressIndicator
 import hashlib
 import math
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StorageManager:
@@ -20,6 +23,9 @@ class StorageManager:
         self.pieces_status = [False] * self.total_pieces
         self.file_map = self._build_file_map()
         self.progress = ProgressIndicator(self.total_pieces)
+        logger.info(
+            f"StorageManager initialized for download_dir='{self.download_dir}' with {self.total_pieces} pieces"
+        )
 
     def get_bitfield(self) -> bytes:
         """
@@ -43,8 +49,12 @@ class StorageManager:
         if 0 <= piece_index < self.total_pieces:
             self.pieces_status[piece_index] = True
             completed = sum(self.pieces_status)
+            logger.info(
+                f"Piece {piece_index} marked as completed, {completed}/{self.total_pieces} pieces done"
+            )
             self.progress.update(completed)
             if completed == self.total_pieces:
+                logger.info("All pieces downloaded")
                 self.progress.close()
 
     def _build_file_map(self):
@@ -80,8 +90,14 @@ class StorageManager:
         for file in files:
             os.makedirs(os.path.dirname(file["path"]), exist_ok=True)
             if not os.path.exists(file["path"]):
-                with open(file["path"], "wb") as tmp:
-                    tmp.truncate(file["length"])
+                try:
+                    with open(file["path"], "wb") as tmp:
+                        tmp.truncate(file["length"])
+                    logger.info(
+                        f"Created file '{file['path']}' with length {file['length']} bytes"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create file '{file['path']}': {e}")
         return files
 
     def write_piece(self, piece_index: int, data: bytes):
@@ -98,19 +114,24 @@ class StorageManager:
         global_offset = piece_index * self.piece_length
         remaining = len(data)
         data_offset = 0
-
-        for f in self.file_map:
-            if global_offset < f["end_off"]:
-                file_rel_offset = max(global_offset - f["start_off"], 0)
-                write_len = min(remaining, f["end_off"] - global_offset)
-                with open(f["path"], "r+b") as fh:
-                    fh.seek(file_rel_offset)
-                    fh.write(data[data_offset : data_offset + write_len])
-                remaining -= write_len
-                global_offset += write_len
-                data_offset += write_len
-                if remaining <= 0:
-                    break
+        try:
+            for f in self.file_map:
+                if global_offset < f["end_off"]:
+                    file_rel_offset = max(global_offset - f["start_off"], 0)
+                    write_len = min(remaining, f["end_off"] - global_offset)
+                    with open(f["path"], "r+b") as fh:
+                        fh.seek(file_rel_offset)
+                        fh.write(data[data_offset : data_offset + write_len])
+                    logger.info(
+                        f"Wrote {write_len} bytes to '{f['path']}' at offset {file_rel_offset} for piece {piece_index}"
+                    )
+                    remaining -= write_len
+                    global_offset += write_len
+                    data_offset += write_len
+                    if remaining <= 0:
+                        break
+        except Exception as e:
+            logger.error(f"Error writing piece {piece_index}: {e}")
 
     def read_piece(self, piece_index: int, offset: int, length: int) -> bytes:
         """
@@ -130,18 +151,24 @@ class StorageManager:
         global_offset = piece_index * self.piece_length + offset
         remaining = length
         data = bytearray()
+        try:
+            for f in self.file_map:
+                if global_offset < f["end_off"]:
+                    file_rel_offset = max(global_offset - f["start_off"], 0)
+                    read_len = min(remaining, f["end_off"] - global_offset)
+                    with open(f["path"], "rb") as fh:
+                        fh.seek(file_rel_offset)
+                        data.extend(fh.read(read_len))
+                    logger.info(
+                        f"Read {read_len} bytes from '{f['path']}' at offset {file_rel_offset} for piece {piece_index}"
+                    )
+                    remaining -= read_len
+                    global_offset += read_len
+                    if remaining <= 0:
+                        break
 
-        for f in self.file_map:
-            if global_offset < f["end_off"]:
-                file_rel_offset = max(global_offset - f["start_off"], 0)
-                read_len = min(remaining, f["end_off"] - global_offset)
-                with open(f["path"], "rb") as fh:
-                    fh.seek(file_rel_offset)
-                    data.extend(fh.read(read_len))
-                remaining -= read_len
-                global_offset += read_len
-                if remaining <= 0:
-                    break
+        except Exception as e:
+            logger.error(f"Error reading piece {piece_index}: {e}")
 
         return bytes(data)
 
@@ -159,4 +186,10 @@ class StorageManager:
         pieces_hashes = self.torrent_info["pieces"]
         piece_hash = pieces_hashes[piece_index * 20 : (piece_index + 1) * 20]
         real_hash = hashlib.sha1(data).digest()
-        return real_hash == piece_hash
+        valid = real_hash == piece_hash
+        if not valid:
+            logger.warning(
+                f"Piece {piece_index} hash mismatch: expected {piece_hash.hex()}, got {real_hash.hex()}"
+            )
+
+        return valid
