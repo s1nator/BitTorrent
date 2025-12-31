@@ -56,7 +56,7 @@ class HandShakeTCP:
                 logging.info(
                     f"Connecting successful protocol: {received_protocol.decode('utf-8', errors='ignore')}"
                 )
-                storage = StorageManager(torrent_info, "/Users/denisbrevnov/Downloads")
+                storage = StorageManager(torrent_info, self.destination)
                 peer_connection = PeerConnection(sock, info_hash, peer_id, storage)
                 peer_connection.start()
                 peer_connection.join()
