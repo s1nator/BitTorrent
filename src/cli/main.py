@@ -11,6 +11,7 @@ def setup_logging():
         datefmt="%H:%M:%S",
     )
 
+
 def download_torrent(source, destination):
     loader = HandShakeTCP(source, destination)
     loader.handshake()
@@ -26,10 +27,10 @@ def main():
     parser.add_argument("-d", "--destination", help="destination folder to save files")
 
     args = parser.parse_args()
-    
+
     threads = []
     for i, source in enumerate(args.sources):
-        dest = args.destinations[i] if args.destinations and i < len(args.destinations) else None
+        dest = args.destination
         thread = threading.Thread(target=download_torrent, args=(source, dest))
         thread.start()
         threads.append(thread)

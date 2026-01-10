@@ -34,34 +34,56 @@ class HandShakeTCP:
             peer_id,
         )
 
-        for peer in peers:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            try:
-                logging.info(f"Connecting to {peer[0]}:{peer[1]}")
-                sock.connect(peer)
-                sock.sendall(packet)
-                response = sock.recv(1024)
-                if not response:
-                    logging.error("Peer closed connection")
-                    continue
+        storage = StorageManager(torrent_info, self.destination)
 
-                if len(response) < 16:
-                    logging.error("Peer is small")
-                    continue
+        while not all(storage.pieces_status):
+            connected = False
+            for peer in peers:
+                if all(storage.pieces_status):
+                    break
 
-                protocol_len = response[0]
-                received_protocol = response[1 : 1 + protocol_len]
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                try:
+                    logging.info(f"Connecting to {peer[0]}:{peer[1]}")
+                    sock.connect(peer)
+                    sock.sendall(packet)
+                    response = sock.recv(1024)
+                    if not response:
+                        logging.error("Peer closed connection")
+                        sock.close()
+                        continue
 
-                logging.info(
-                    f"Connecting successful protocol: {received_protocol.decode('utf-8', errors='ignore')}"
+                    if len(response) < 16:
+                        logging.error("Peer is small")
+                        sock.close()
+                        continue
+
+                    protocol_len = response[0]
+                    received_protocol = response[1 : 1 + protocol_len]
+
+                    logging.info(
+                        f"Connecting successful protocol: {received_protocol.decode('utf-8', errors='ignore')}"
+                    )
+                    peer_connection = PeerConnection(sock, info_hash, peer_id, storage)
+                    peer_connection.start()
+                    peer_connection.join()
+                    sock.close()
+                    connected = True
+                    if all(storage.pieces_status):
+                        break
+
+                except Exception as e:
+                    logging.error(f"Error connecting to {peer[0]}:{peer[1]}: {e}")
+                    sock.close()
+
+            if not connected and not all(storage.pieces_status):
+                logging.error(
+                    "Could not connect to any peer or download incomplete. Retrying..."
                 )
-                storage = StorageManager(torrent_info, self.destination)
-                peer_connection = PeerConnection(sock, info_hash, peer_id, storage)
-                peer_connection.start()
-                peer_connection.join()
-                sock.close()
-                break
+                import time
 
-            except Exception as e:
-                logging.error(f"Error connecting to {peer[0]}:{peer[1]}: {e}")
+                time.sleep(5)
+            elif all(storage.pieces_status):
+                logging.info("Download complete!")
+                break

@@ -9,28 +9,41 @@ logger = logging.getLogger(__name__)
 
 class StorageManager:
     def __init__(self, torrent_info, download_dir):
-        """
-        Initializes the storage manager for handling file operations related to the torrent
-
-        Args:
-            torrent_info (dict): The "info" dictionary from the parsed .torrent file, containing metadata about files and pieces
-            download_dir (str): The directory where torrent data will be stored
-        """
         self.torrent_info = torrent_info
         self.download_dir = download_dir
         self.piece_length = torrent_info["piece length"]
         self.total_pieces = len(self.torrent_info["pieces"]) // 20
         self.pieces_status = [False] * self.total_pieces
         self.file_map = self._build_file_map()
+        self._validate_existing_pieces()
         self.progress = ProgressIndicator(self.total_pieces)
         logger.info(
             f"StorageManager initialized for download_dir='{self.download_dir}' with {self.total_pieces} pieces"
         )
 
+    def _validate_existing_pieces(self):
+        logger.info("Validating existing data...")
+        for i in range(self.total_pieces):
+            try:
+                # Calculate piece length (handle last piece)
+                piece_len = self.piece_length
+                if i == self.total_pieces - 1:
+                    total_length = sum(f["length"] for f in self.file_map)
+                    rem = total_length % self.piece_length
+                    if rem > 0:
+                        piece_len = rem
+
+                data = self.read_piece(i, 0, piece_len)
+                if self.piece_hash_valid(i, data):
+                    self.pieces_status[i] = True
+            except Exception:
+                pass
+
+        completed = sum(self.pieces_status)
+        if completed > 0:
+            logger.info(f"Found {completed} valid pieces already downloaded")
+
     def get_bitfield(self) -> bytes:
-        """
-        Generates the bitfield bytes representing the pieces available
-        """
         num_bytes = math.ceil(self.total_pieces / 8)
         bitfield = bytearray(num_bytes)
 
@@ -43,9 +56,6 @@ class StorageManager:
         return bytes(bitfield)
 
     def mark_piece_completed(self, piece_index: int):
-        """
-        Updates the internal status to indicate the piece is available
-        """
         if 0 <= piece_index < self.total_pieces:
             self.pieces_status[piece_index] = True
             completed = sum(self.pieces_status)
@@ -58,17 +68,13 @@ class StorageManager:
                 self.progress.close()
 
     def _build_file_map(self):
-        """
-        Builds an internal mapping between pieces and the corresponding files and offsets on disk
-
-        Returns:
-            list: A list of tuples, each containing (file_path, file_offset, size) for every file in the torrent
-        """
         files = []
         if "files" in self.torrent_info:
+            root_dir = self.torrent_info["name"]
+            base_path = os.path.join(self.download_dir, root_dir)
             current_offset = 0
             for fileinfo in self.torrent_info["files"]:
-                path = os.path.join(self.download_dir, *fileinfo["path"])
+                path = os.path.join(base_path, *fileinfo["path"])
                 length = fileinfo["length"]
                 files.append(
                     {
@@ -101,16 +107,6 @@ class StorageManager:
         return files
 
     def write_piece(self, piece_index: int, data: bytes):
-        """
-        Writes the entire piece's data into the correct location(s) on disk
-
-        Args:
-            piece_index (int): The index of the piece to write
-            data (bytes): The byte content of the piece, typically piece_length long except possibly the last piece
-
-        Raises:
-            IOError: If a disk write operation fails.
-        """
         global_offset = piece_index * self.piece_length
         remaining = len(data)
         data_offset = 0
@@ -134,20 +130,6 @@ class StorageManager:
             logger.error(f"Error writing piece {piece_index}: {e}")
 
     def read_piece(self, piece_index: int, offset: int, length: int) -> bytes:
-        """
-        Reads a segment from a piece stored on disk
-
-        Args:
-            piece_index (int): The index of the piece requested
-            offset (int): The byte offset within the piece to start reading from
-            length (int): The number of bytes to read from the offset
-
-        Returns:
-            bytes: The requested data segment, which may span file boundaries
-
-        Raises:
-            IOError: If a disk read operation fails.
-        """
         global_offset = piece_index * self.piece_length + offset
         remaining = length
         data = bytearray()
@@ -173,16 +155,6 @@ class StorageManager:
         return bytes(data)
 
     def piece_hash_valid(self, piece_index: int, data: bytes) -> bool:
-        """
-        Validates the SHA1 hash of a piece against the expected hash from the .torrent
-
-        Args:
-            piece_index (int): The index of the piece being validated
-            data (bytes): The piece data whose hash is to be checked
-
-        Returns:
-            bool: True if the data hash matches the expected hash
-        """
         pieces_hashes = self.torrent_info["pieces"]
         piece_hash = pieces_hashes[piece_index * 20 : (piece_index + 1) * 20]
         real_hash = hashlib.sha1(data).digest()
