@@ -1,4 +1,5 @@
 from src.torrent.parser import TorrentFileParser
+import bcoding
 import requests
 import socket
 import struct
@@ -33,7 +34,29 @@ class GetPeers:
         for index in list_args[0]:
             if "http" in index or "https" in index:
                 try:
-                    request = requests.get(index, params=params, timeout=5).status_code
+                    response = requests.get(index, params=params, timeout=5)
+                    if response.status_code == 200:
+                        tracker_response = bcoding.bdecode(response.content)
+                        if "peers" in tracker_response:
+                            peers_data = tracker_response["peers"]
+                            peers = []
+                            if isinstance(peers_data, bytes):
+                                # Compact format
+                                for i in range(0, len(peers_data), 6):
+                                    ip_bytes = peers_data[i:i+4]
+                                    port_bytes = peers_data[i+4:i+6]
+                                    ip_str = socket.inet_ntoa(ip_bytes)
+                                    port_int = struct.unpack(
+                                        "!H", port_bytes)[0]
+                                    peers.append((ip_str, port_int))
+                            else:
+                                # Dictionary format
+                                for peer in peers_data:
+                                    peers.append((peer["ip"], peer["port"]))
+                            if peers:
+                                logger.info(
+                                    f"Found {len(peers)} peers from HTTP tracker {index}")
+                                return peers, list_args[1], list_args[2]
                 except Exception as e:
                     logger.error(f"HTTP tracker error: {e}")
                     continue
@@ -109,25 +132,31 @@ class GetPeers:
                     response, _ = sock.recvfrom(10000)
 
                     if len(response) < 20:
-                        logger.error(f"Response is smaller than 20 from {index}")
+                        logger.error(
+                            f"Response is smaller than 20 from {index}")
                         continue
 
                     peers_ip = response[20:]
 
                     peers = []
                     for i in range(0, len(peers_ip), 6):
-                        ip_bites = peers_ip[i : i + 4]
-                        port_bytes = peers_ip[i + 4 : i + 6]
+                        ip_bites = peers_ip[i: i + 4]
+                        port_bytes = peers_ip[i + 4: i + 6]
 
                         ip_str = socket.inet_ntoa(ip_bites)
                         port_int = struct.unpack("!H", port_bytes)[0]
                         peers.append((ip_str, int(port_int)))
 
                     logger.info(f"Found {len(peers)} peers from {index}")
+                    sock.close()
                     return peers, info_hash, peer_id
 
                 except Exception as e:
                     logger.error(f"Error connecting to tracker {index}: {e}")
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
                     continue
 
         return None, None, None

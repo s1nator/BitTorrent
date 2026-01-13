@@ -1,4 +1,5 @@
-import bcoding, logging
+import bcoding
+import logging
 import random
 import hashlib
 
@@ -22,7 +23,7 @@ class TorrentFileParser:
 
         return total_size
 
-    def parse(self) -> list[str] | None:
+    def parse(self) -> tuple[list[str], bytes, bytes, int, dict] | None:
         try:
             self.logger.info(f"Parsing file from '{self.source}'")
 
@@ -41,8 +42,9 @@ class TorrentFileParser:
 
             peer_id = (
                 f"-PC0001-{''.join([str(random.randint(0, 9)) for _ in range(12)])}"
-            )
-            info_hash = hashlib.sha1(bcoding.bencode(torrent_data["info"])).digest()
+            ).encode('utf-8')
+            info_hash = hashlib.sha1(
+                bcoding.bencode(torrent_data["info"])).digest()
             left = self.get_total_size(torrent_data["info"])
 
             return [

@@ -1,7 +1,6 @@
 import struct
 import threading
 import logging
-import math
 import time
 
 logger = logging.getLogger(__name__)
@@ -24,6 +23,7 @@ class PeerConnection(threading.Thread):
         self.current_piece_buffer = bytearray()
         self.current_piece_downloaded = 0
         self.block_size = 16384
+        self._lock = threading.Lock()
 
     def run(self):
         if self.perform_handshake():
@@ -54,9 +54,9 @@ class PeerConnection(threading.Thread):
                 return False
 
             recv_protocol_len = response[0]
-            recv_protocol = response[1 : 1 + recv_protocol_len]
+            recv_protocol = response[1: 1 + recv_protocol_len]
             recv_info_hash = response[
-                1 + recv_protocol_len + 8 : 1 + recv_protocol_len + 8 + 20
+                1 + recv_protocol_len + 8: 1 + recv_protocol_len + 8 + 20
             ]
 
             if recv_protocol != protocol:
@@ -175,7 +175,8 @@ class PeerConnection(threading.Thread):
         begin = self.current_piece_downloaded
         length = min(self.block_size, piece_length - begin)
 
-        msg = struct.pack(">IBIII", 13, 6, self.current_piece_index, begin, length)
+        msg = struct.pack(
+            ">IBIII", 13, 6, self.current_piece_index, begin, length)
         self.peer_socket.sendall(msg)
 
     def process_piece(self, payload):
@@ -205,7 +206,8 @@ class PeerConnection(threading.Thread):
         if self.storage_manager.piece_hash_valid(self.current_piece_index, data):
             self.storage_manager.write_piece(self.current_piece_index, data)
             self.storage_manager.mark_piece_completed(self.current_piece_index)
-            logger.info(f"Piece {self.current_piece_index} verified and written")
+            logger.info(
+                f"Piece {self.current_piece_index} verified and written")
         else:
             logger.error(f"Piece {self.current_piece_index} hash check failed")
 
@@ -214,8 +216,12 @@ class PeerConnection(threading.Thread):
         self.current_piece_downloaded = 0
 
     def stop(self):
-        self.running = False
-        self.peer_socket.close()
+        with self._lock:
+            self.running = False
+        try:
+            self.peer_socket.close()
+        except Exception:
+            pass
 
     def recv_bt_message(self):
         length_bytes = self._recvall(4)
