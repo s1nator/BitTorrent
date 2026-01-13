@@ -2,6 +2,7 @@ from src.peer.connection import PeerConnection
 from src.tracker.get_peers import GetPeers
 from src.torrent.parser import TorrentFileParser
 from src.storage.file_manager import StorageManager
+from src import state
 import logging
 import socket
 import time
@@ -32,8 +33,16 @@ class HandShakeTCP:
         storage = StorageManager(torrent_info, self.destination)
 
         while not all(storage.pieces_status):
+            if state.is_stopped():
+                logging.info("Download stopped by user")
+                return
+            if not state.wait_if_paused():
+                return
+
             connected = False
             for peer in peers:
+                if state.is_stopped():
+                    return
                 if all(storage.pieces_status):
                     break
 
@@ -61,6 +70,8 @@ class HandShakeTCP:
                         pass
 
             if not connected and not all(storage.pieces_status):
+                if state.is_stopped():
+                    return
                 logging.error(
                     "Could not connect to any peer or download incomplete. Retrying..."
                 )

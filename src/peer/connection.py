@@ -2,6 +2,7 @@ import struct
 import threading
 import logging
 import time
+from src import state
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,12 @@ class PeerConnection(threading.Thread):
     def handle_peer_session(self):
         try:
             while self.running:
+                # Check for stop/pause
+                if state.is_stopped():
+                    break
+                if not state.wait_if_paused():
+                    break
+
                 if (
                     not self.peer_choking
                     and self.current_piece_index == -1
