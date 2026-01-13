@@ -1,7 +1,6 @@
 import argparse
 import logging
 import threading
-import sys
 
 from src.peer.handshake import HandShakeTCP
 from src import state
@@ -16,8 +15,8 @@ def setup_logging():
     )
 
 
-def download_torrent(source, destination):
-    loader = HandShakeTCP(source, destination)
+def download_torrent(source, destination, seed=True):
+    loader = HandShakeTCP(source, destination, seed=seed)
     loader.handshake()
 
 
@@ -27,11 +26,11 @@ def keyboard_listener():
     while not state.is_stopped():
         try:
             cmd = input().strip().lower()
-            if cmd == 'p':
+            if cmd == "p":
                 state.pause()
-            elif cmd == 'r':
+            elif cmd == "r":
                 state.resume()
-            elif cmd == 'q':
+            elif cmd == "q":
                 state.stop()
         except EOFError:
             break
@@ -44,8 +43,10 @@ def main():
 
     parser = argparse.ArgumentParser(prog="BitTorrent")
     parser.add_argument("sources", nargs="+", help="paths to .torrent files")
-    parser.add_argument("-d", "--destination",
-                        help="destination folder to save files")
+    parser.add_argument("-d", "--destination", help="destination folder to save files")
+    parser.add_argument(
+        "--no-seed", action="store_true", help="don't seed after download"
+    )
 
     args = parser.parse_args()
 
@@ -57,7 +58,8 @@ def main():
     threads = []
     for i, source in enumerate(args.sources):
         dest = args.destination
-        thread = threading.Thread(target=download_torrent, args=(source, dest))
+        seed = not args.no_seed
+        thread = threading.Thread(target=download_torrent, args=(source, dest, seed))
         thread.start()
         threads.append(thread)
 

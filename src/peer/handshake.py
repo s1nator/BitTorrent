@@ -1,10 +1,12 @@
 from src.peer.connection import PeerConnection
+from src.peer.seeder import SeederServer
 from src.tracker.get_peers import GetPeers
 from src.torrent.parser import TorrentFileParser
 from src.storage.file_manager import StorageManager
 from src import state
 import logging
 import socket
+import threading
 import time
 
 
@@ -13,9 +15,11 @@ class HandShakeTCP:
     destination: str
     logger = logging.getLogger(__name__)
 
-    def __init__(self, source: str, destination: str) -> None:
+    def __init__(self, source: str, destination: str, seed: bool = True) -> None:
         self.source = source
         self.destination = destination
+        self.seed = seed
+        self.seeder = None
 
     def handshake(self) -> None:
         parse_result = TorrentFileParser(self.source, self.destination).parse()
@@ -32,16 +36,24 @@ class HandShakeTCP:
 
         storage = StorageManager(torrent_info, self.destination)
 
+        if self.seed:
+            self.seeder = SeederServer(info_hash, peer_id, storage)
+            seeder_thread = threading.Thread(target=self.seeder.start, daemon=True)
+            seeder_thread.start()
+
         while not all(storage.pieces_status):
             if state.is_stopped():
                 logging.info("Download stopped by user")
+                self._stop_seeder()
                 return
             if not state.wait_if_paused():
+                self._stop_seeder()
                 return
 
             connected = False
             for peer in peers:
                 if state.is_stopped():
+                    self._stop_seeder()
                     return
                 if all(storage.pieces_status):
                     break
@@ -52,8 +64,7 @@ class HandShakeTCP:
                     logging.info(f"Connecting to {peer[0]}:{peer[1]}")
                     sock.connect(peer)
                     # PeerConnection handles the handshake
-                    peer_connection = PeerConnection(
-                        sock, info_hash, peer_id, storage)
+                    peer_connection = PeerConnection(sock, info_hash, peer_id, storage)
                     peer_connection.start()
                     peer_connection.join()
                     # Socket closed by PeerConnection.run()
@@ -62,8 +73,7 @@ class HandShakeTCP:
                         break
 
                 except Exception as e:
-                    logging.error(
-                        f"Error connecting to {peer[0]}:{peer[1]}: {e}")
+                    logging.error(f"Error connecting to {peer[0]}:{peer[1]}: {e}")
                     try:
                         sock.close()
                     except Exception:
@@ -71,6 +81,7 @@ class HandShakeTCP:
 
             if not connected and not all(storage.pieces_status):
                 if state.is_stopped():
+                    self._stop_seeder()
                     return
                 logging.error(
                     "Could not connect to any peer or download incomplete. Retrying..."
@@ -79,3 +90,17 @@ class HandShakeTCP:
             elif all(storage.pieces_status):
                 logging.info("Download complete!")
                 break
+
+        if self.seed and self.seeder:
+            print("\nDownload complete! Seeding... (press 'q' to stop)")
+            while not state.is_stopped():
+                if not state.wait_if_paused():
+                    break
+                time.sleep(1)
+            self._stop_seeder()
+
+    def _stop_seeder(self):
+        """Stop the seeder server if running"""
+        if self.seeder:
+            self.seeder.stop()
+            self.seeder = None
